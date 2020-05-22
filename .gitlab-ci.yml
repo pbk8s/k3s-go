@@ -1,0 +1,32 @@
+image: docker:latest
+services:
+  - docker:dind
+
+stages:
+  - build
+  - deploy
+
+variables:
+  DOCKER_TLS_CERTDIR: ""
+  CONTAINER_IMAGE: pbakre/go-demo-app:latest
+
+build:
+  stage: build
+  script:
+    - docker login -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
+    - docker build -t ${CONTAINER_IMAGE} .
+    - docker tag ${CONTAINER_IMAGE} ${CONTAINER_IMAGE}
+    - docker tag ${CONTAINER_IMAGE} pbakre/go-k8s-world:latest
+    - docker push ${CONTAINER_IMAGE}
+    
+deploy:
+  stage: deploy
+  image: pbakre/kubectl-arm:latest
+  script:
+    - kubectl config set-cluster k8s --server="${SERVER}"
+    - kubectl config set clusters.k8s.certificate-authority-data ${CERTIFICATE_AUTHORITY_DATA}
+    - kubectl config set-credentials gitlab --token="${USER_TOKEN}"
+    - kubectl config set-context default --cluster=k8s --user=gitlab
+    - kubectl config use-context default
+    - sed -i "s/latest/latest/g" deployment.yaml
+    - kubectl apply -f deployment.yaml
